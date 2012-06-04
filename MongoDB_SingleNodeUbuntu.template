@@ -11,8 +11,8 @@
 
         "InstanceType" : {
             "Type" : "String", 
-            "Default" : "m1.large", 
-            "AllowedValues" : [ "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.xlarge", "cc1.4xlarge" ],
+            "Default" : "m1.small", 
+            "AllowedValues" : [ "t1.micro", "m1.small","m1.medium", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.xlarge", "cc1.4xlarge" ],
             "Description" : "EC2 instance type (e.g. m1.large, m1.xlarge, m2.xlarge)"
         },
 
@@ -38,13 +38,13 @@
         },
 
         "RegionImageZone" : {
-            "us-east-1"      : { "64" : "ami-e565ba8c", "64HVM" : "ami-e965ba80" },
-            "us-west-2"      : { "64" : "ami-3ac64a0a", "64HVM" : "NOT_YET_SUPPORTED" },
-            "us-west-1"      : { "64" : "ami-e78cd4a2", "64HVM" : "NOT_YET_SUPPORTED" },
-            "eu-west-1"      : { "64" : "ami-f9231b8d", "64HVM" : "NOT_YET_SUPPORTED" },
-            "ap-southeast-1" : { "64" : "ami-be3374ec", "64HVM" : "NOT_YET_SUPPORTED" },
-            "ap-northeast-1" : { "64" : "ami-e47acbe5", "64HVM" : "NOT_YET_SUPPORTED" },
-            "sa-east-1"      : { "64" : "ami-a6855bbb", "64HVM" : "NOT_YET_SUPPORTED" }
+            "us-east-1"      : { "64" : "ami-a29943cb", "64HVM" : "ami-e965ba80" },
+            "us-west-2"      : { "64" : "ami-20800c10", "64HVM" : "NOT_YET_SUPPORTED" },
+            "us-west-1"      : { "64" : "ami-87712ac2", "64HVM" : "NOT_YET_SUPPORTED" },
+            "eu-west-1"      : { "64" : "ami-e1e8d395", "64HVM" : "NOT_YET_SUPPORTED" },
+            "ap-southeast-1" : { "64" : "ami-a4ca8df6", "64HVM" : "NOT_YET_SUPPORTED" },
+            "ap-northeast-1" : { "64" : "ami-60c77761", "64HVM" : "NOT_YET_SUPPORTED" },
+            "sa-east-1"      : { "64" : "ami-8cd80691", "64HVM" : "NOT_YET_SUPPORTED" }
         }
     },
 
@@ -114,22 +114,9 @@
                 "AWS::CloudFormation::Init" : {
                     "config" : {
                         "packages" : {
-                            "yum" : {
+                            "apt" : {
                                 "mdadm" : [],
                                 "sysstat" : []
-                            }
-                        },
-                        "files" : {
-                            "/etc/yum.repos.d/10gen.repo" : {
-                                "content" : { "Fn::Join" : ["", [
-                                    "[10gen]\n",
-                                    "name=10gen Repository\n",
-                                    "baseurl=http://downloads-distro.mongodb.org/repo/redhat/os/x86_64\n",
-                                    "gpgcheck=0\n"
-                                ] ] },
-                                "mode" : "000644",
-                                "owner" : "root",
-                                "group" : "root"
                             }
                         }
                     }
@@ -144,17 +131,17 @@
                 "KeyName" : { "Ref" : "KeyName" },
                 "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
                     "#!/bin/bash\n",
-                    "yum update -y aws-cfn-bootstrap\n",
 
-                    "## Error reporting helper function\n",
                     "function error_exit\n",
                     "{\n",
-                    "   /opt/aws/bin/cfn-signal -e 1 -r \"$1\" '", { "Ref" : "WaitHandleMongoInstance" }, "'\n",
-                    "   exit 1\n",
+                    "  cfn-signal -e 1 -r \"$1\" '", { "Ref" : "WaitHandleMongoInstance" }, "'\n",
+                    "  exit 1\n",
                     "}\n",
 
+                    "apt-get -y install python-setuptools\n",
+                    "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-1.0-6.tar.gz\n",
                     "## Initialize CloudFormation bits\n",
-                    "/opt/aws/bin/cfn-init -v -s ", { "Ref" : "AWS::StackName" }, " -r MongoInstance",
+                    "cfn-init -v -s ", { "Ref" : "AWS::StackName" }, " -r MongoInstance",
                     "   --access-key ",  { "Ref" : "HostKeys" },
                     "   --secret-key ", {"Fn::GetAtt": ["HostKeys", "SecretAccessKey"]},
                     "   --region ", { "Ref" : "AWS::Region" }, " > /tmp/cfn-init.log 2>&1 || error_exit $(</tmp/cfn-init.log)\n",
@@ -165,7 +152,7 @@
                     "while [ ! -e /dev/sdh3 ]; do echo waiting for /dev/sdh3 to attach; sleep 10; done\n",
                     "while [ ! -e /dev/sdh4 ]; do echo waiting for /dev/sdh4 to attach; sleep 10; done\n",
 
-                    "yum -y install mongo-10gen-server > /tmp/yum-mongo.log 2>&1\n",
+                    "## apt-get -y install mongo-10gen-server > /tmp/apt-mongo.log 2>&1\n",
 
                     "## Create RAID10 and persist configuration\n",
                     "mdadm --verbose --create /dev/md0 --level=10 --chunk=256 --raid-devices=4 /dev/sdh1 /dev/sdh2 /dev/sdh3 /dev/sdh4 > /tmp/mdadm.log 2>&1\n",
@@ -219,10 +206,10 @@
                     "EOF\n",
 
                     "## Start mongod\n",
-                    "/etc/init.d/mongod start > /tmp/mongod-start.log 2>&1\n",
+                    "## /etc/init.d/mongod start > /tmp/mongod-start.log 2>&1\n",
 
                     "## CloudFormation signal that setup is complete\n",
-                    "/opt/aws/bin/cfn-signal -e 0 -r \"MongoInstance setup complete\" '", { "Ref" : "WaitHandleMongoInstance" }, "'\n"
+                    "cfn-signal -e 0 -r \"MongoInstance setup complete\" '", { "Ref" : "WaitHandleMongoInstance" }, "'\n"
                 ] ] } }
             }
         },
@@ -305,7 +292,7 @@
             "DependsOn" : "MongoInstance",
             "Properties" : {
                 "Handle" : { "Ref" : "WaitHandleMongoInstance" },
-                "Timeout" : "300"
+                "Timeout" : "10000"
             }
         }
     },
