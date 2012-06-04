@@ -11,8 +11,8 @@
 
         "InstanceType" : {
             "Type" : "String", 
-            "Default" : "m1.large", 
-            "AllowedValues" : [ "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.xlarge", "cc1.4xlarge" ],
+            "Default" : "m1.small", 
+            "AllowedValues" : [ "m1.small", "m1.medium", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.xlarge", "cc1.4xlarge" ],
             "Description" : "EC2 instance type (e.g. m1.large, m1.xlarge, m2.xlarge)"
         },
 
@@ -63,13 +63,13 @@
         },
 
         "RegionImageZone" : {
-            "us-east-1"      : { "64" : "ami-e565ba8c", "64HVM" : "ami-e965ba80" },
-            "us-west-2"      : { "64" : "ami-3ac64a0a", "64HVM" : "NOT_YET_SUPPORTED" },
-            "us-west-1"      : { "64" : "ami-e78cd4a2", "64HVM" : "NOT_YET_SUPPORTED" },
-            "eu-west-1"      : { "64" : "ami-f9231b8d", "64HVM" : "NOT_YET_SUPPORTED" },
-            "ap-southeast-1" : { "64" : "ami-be3374ec", "64HVM" : "NOT_YET_SUPPORTED" },
-            "ap-northeast-1" : { "64" : "ami-e47acbe5", "64HVM" : "NOT_YET_SUPPORTED" },
-            "sa-east-1"      : { "64" : "ami-a6855bbb", "64HVM" : "NOT_YET_SUPPORTED" }
+            "us-east-1"      : { "64" : "ami-a29943cb", "64HVM" : "ami-e965ba80" },
+            "us-west-2"      : { "64" : "ami-20800c10", "64HVM" : "NOT_YET_SUPPORTED" },
+            "us-west-1"      : { "64" : "ami-87712ac2", "64HVM" : "NOT_YET_SUPPORTED" },
+            "eu-west-1"      : { "64" : "ami-e1e8d395", "64HVM" : "NOT_YET_SUPPORTED" },
+            "ap-southeast-1" : { "64" : "ami-a4ca8df6", "64HVM" : "NOT_YET_SUPPORTED" },
+            "ap-northeast-1" : { "64" : "ami-60c77761", "64HVM" : "NOT_YET_SUPPORTED" },
+            "sa-east-1"      : { "64" : "ami-8cd80691", "64HVM" : "NOT_YET_SUPPORTED" }
         }
     },
 
@@ -81,18 +81,15 @@
                 "AWS::CloudFormation::Init" : {
                     "config" : {
                         "packages" : {
-                            "yum" : {
+                            "apt" : {
                                 "mdadm" : [],
                                 "sysstat" : []
                             }
                         },
                         "files" : {
-                            "/etc/yum.repos.d/10gen.repo" : {
+                            "/etc/apt/sources.list.d/10gen.list" : {
                                 "content" : { "Fn::Join" : ["", [
-                                    "[10gen]\n",
-                                    "name=10gen Repository\n",
-                                    "baseurl=http://downloads-distro.mongodb.org/repo/redhat/os/x86_64\n",
-                                    "gpgcheck=0\n"
+                                    "deb http://downloads-distro.mongodb.org/repo/ubuntu-upstart dist 10gen"
                                 ] ] },
                                 "mode" : "000644",
                                 "owner" : "root",
@@ -111,8 +108,23 @@
                 "KeyName" : { "Ref" : "KeyName" },
                 "AvailabilityZone" : {"Ref" : "InstanceZone" },
                 "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+                     "#!/bin/bash\n",
+                     "function error_exit\n",
+                     "{\n",
+                     "  cfn-signal -e 1 -r \"$1\" '", { "Ref" : "WaitHandleReplicaSetMember" }, "'\n",
+                     "  exit 1\n",
+                     "}\n",
+ 
+                     "apt-get -y install python-setuptools\n",
+                     "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-1.0-6.tar.gz\n",
+                     "cfn-init --region ", { "Ref" : "AWS::Region" },
+                     "    -s ", { "Ref" : "AWS::StackName" }, " -r ChefServer ",
+                     "         --access-key ", { "Ref" : "HostKeys" },
+                     "         --secret-key ", {"Fn::GetAtt": ["HostKeys", "SecretAccessKey"]}, " || error_exit 'Failed to run cfn-init'\n",
+  
+                "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
                     "#!/bin/bash\n",
-                    "yum update -y aws-cfn-bootstrap\n",
+                    "apt-get update -y aws-cfn-bootstrap\n",
 
                     "## Error reporting helper function\n",
                     "function error_exit\n",
