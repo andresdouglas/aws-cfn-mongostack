@@ -118,7 +118,6 @@
                     }
                 }
             },
-
             "Properties" : {
                 "InstanceType" : { "Ref" : "InstanceType" },
                 "ImageId" : { "Fn::FindInMap" : [ "RegionImageZone", { "Ref" : "AWS::Region" }, 
@@ -252,6 +251,7 @@
 
         "MongoVolumeMount1" : {
             "Type" : "AWS::EC2::VolumeAttachment",
+            "DependsOn" : "MongoVolume1",
             "Properties" : {
                 "InstanceId" : { "Ref" : "MongoInstance" },
                 "VolumeId" : { "Ref" : "MongoVolume1" },
@@ -261,6 +261,7 @@
 
         "MongoVolumeMount2" : {
             "Type" : "AWS::EC2::VolumeAttachment",
+            "DependsOn" : "MongoVolume2",
             "Properties" : {
                 "InstanceId" : { "Ref" : "MongoInstance" },
                 "VolumeId" : { "Ref" : "MongoVolume2" },
@@ -270,6 +271,7 @@
 
         "MongoVolumeMount3" : {
             "Type" : "AWS::EC2::VolumeAttachment",
+            "DependsOn" : "MongoVolume3",
             "Properties" : {
                 "InstanceId" : { "Ref" : "MongoInstance" },
                 "VolumeId" : { "Ref" : "MongoVolume3" },
@@ -279,6 +281,7 @@
 
         "MongoVolumeMount4" : {
             "Type" : "AWS::EC2::VolumeAttachment",
+            "DependsOn" : "MongoVolume4",
             "Properties" : {
                 "InstanceId" : { "Ref" : "MongoInstance" },
                 "VolumeId" : { "Ref" : "MongoVolume4" },
@@ -293,10 +296,10 @@
 
         "WaitConditionMongoInstance" : {
             "Type" : "AWS::CloudFormation::WaitCondition",
-            "DependsOn" : "MongoInstance",
+            "DependsOn" : ["MongoInstance", "MongoVolumeMount4", "MongoVolumeMount3", "MongoVolumeMount2", "MongoVolumeMount1"], 
             "Properties" : {
                 "Handle" : { "Ref" : "WaitHandleMongoInstance" },
-                "Timeout" : "10000"
+                "Timeout" : "3000"
             }
         }
     },
