@@ -114,10 +114,6 @@
                 "AWS::CloudFormation::Init" : {
                     "config" : {
                         "packages" : {
-                            "apt" : {
-                                "mdadm" : [],
-                                "sysstat" : []
-                            }
                         }
                     }
                 }
@@ -138,14 +134,21 @@
                     "  exit 1\n",
                     "}\n",
 
+                    "echo 'apt-get update' >> /tmp/apt.log\n",
+                    "apt-get -y update >> /tmp/apt.log 2>&1\n",
+                    "echo 'apt-get install mdadm sysstat' >> /tmp/apt.log\n",
+                    "DEBIAN_FRONTEND=noninteractive apt-get -y install mdadm sysstat >> /tmp/apt.log 2>&1\n",
+                    "echo 'apt-get install python-setuptools' >> /tmp/cfn-init.log\n",
                     "apt-get -y install python-setuptools\n",
-                    "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-1.0-6.tar.gz\n",
+                    "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+                    "echo 'initialize CloudFormation' >> /tmp/cfn-init.log\n",
                     "## Initialize CloudFormation bits\n",
                     "cfn-init -v -s ", { "Ref" : "AWS::StackName" }, " -r MongoInstance",
                     "   --access-key ",  { "Ref" : "HostKeys" },
                     "   --secret-key ", {"Fn::GetAtt": ["HostKeys", "SecretAccessKey"]},
-                    "   --region ", { "Ref" : "AWS::Region" }, " > /tmp/cfn-init.log 2>&1 || error_exit $(</tmp/cfn-init.log)\n",
+                    "   --region ", { "Ref" : "AWS::Region" }, " >> /tmp/cfn-init.log 2>&1 || error_exit $(</tmp/cfn-init.log)\n",
 
+                    "echo 'waiting for EBS volumes' >> /tmp/cfn-init.log\n",
                     "## Waiting for EBS mounts to become available\n",
                     "while [ ! -e /dev/sdh1 ]; do echo waiting for /dev/sdh1 to attach; sleep 10; done\n",
                     "while [ ! -e /dev/sdh2 ]; do echo waiting for /dev/sdh2 to attach; sleep 10; done\n",
@@ -153,7 +156,8 @@
                     "while [ ! -e /dev/sdh4 ]; do echo waiting for /dev/sdh4 to attach; sleep 10; done\n",
 
                     "## apt-get -y install mongo-10gen-server > /tmp/apt-mongo.log 2>&1\n",
-
+                    
+                    "echo 'Create RAID10' >> /tmp/cfn-init.log\n",
                     "## Create RAID10 and persist configuration\n",
                     "mdadm --verbose --create /dev/md0 --level=10 --chunk=256 --raid-devices=4 /dev/sdh1 /dev/sdh2 /dev/sdh3 /dev/sdh4 > /tmp/mdadm.log 2>&1\n",
                     "echo '`mdadm --detail --scan`' | tee -a /etc/mdadm.conf\n",
