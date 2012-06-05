@@ -133,40 +133,39 @@
                     "  exit 1\n",
                     "}\n",
 
-                    "echo 'apt-get update' >> /tmp/apt.log\n",
-                    "apt-get -y update >> /tmp/apt.log 2>&1\n",
-                    "echo 'apt-get install mdadm sysstat' >> /tmp/apt.log\n",
-                    "DEBIAN_FRONTEND=noninteractive apt-get -y install mdadm sysstat >> /tmp/apt.log 2>&1\n",
-                    "echo 'apt-get install python-setuptools' >> /tmp/cfn-init.log\n",
+                    "## add mongo gpg key\n",
+                    "apt-key adv --keyserver keyserver.ubuntu.com --recv 7F0CEB10 >> /tmp/cfn-init.log 2>&1\n",
+                    "echo 'deb http://downloads-distro.mongodb.org/repo/debian-sysvinit dist 10gen' >> /etc/apt/sources.list\n",
+                    
+                    "apt-get -y update >> /tmp/cfn-init.log 2>&1\n",
+                    
+                    "DEBIAN_FRONTEND=noninteractive apt-get -y install mdadm sysstat mongodb-10gen >> /tmp/apt.log 2>&1\n",
+                    
                     "apt-get -y install python-setuptools\n",
                     "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
-                    "echo 'initialize CloudFormation' >> /tmp/cfn-init.log\n",
+                    
                     "## Initialize CloudFormation bits\n",
                     "cfn-init -v -s ", { "Ref" : "AWS::StackName" }, " -r MongoInstance",
                     "   --access-key ",  { "Ref" : "HostKeys" },
                     "   --secret-key ", {"Fn::GetAtt": ["HostKeys", "SecretAccessKey"]},
                     "   --region ", { "Ref" : "AWS::Region" }, " >> /tmp/cfn-init.log 2>&1 || error_exit $(</tmp/cfn-init.log)\n",
-
-                    "echo 'waiting for EBS volumes' >> /tmp/cfn-init.log\n",
-                    "## Waiting for EBS mounts to become available\n",
-                    "while [ ! -e /dev/sdh1 ]; do echo waiting for /dev/sdh1 to attach; sleep 10; done\n",
-                    "while [ ! -e /dev/sdh2 ]; do echo waiting for /dev/sdh2 to attach; sleep 10; done\n",
-                    "while [ ! -e /dev/sdh3 ]; do echo waiting for /dev/sdh3 to attach; sleep 10; done\n",
-                    "while [ ! -e /dev/sdh4 ]; do echo waiting for /dev/sdh4 to attach; sleep 10; done\n",
-
-                    "## apt-get -y install mongo-10gen-server > /tmp/apt-mongo.log 2>&1\n",
                     
-                    "echo 'Create RAID10' >> /tmp/cfn-init.log\n",
+                    "## Waiting for EBS mounts to become available\n",
+                    "while [ ! -e /dev/xvdh1 ]; do echo waiting for /dev/xvdh1 to attach; sleep 10; done\n",
+                    "while [ ! -e /dev/xvdh2 ]; do echo waiting for /dev/xvdh2 to attach; sleep 10; done\n",
+                    "while [ ! -e /dev/xvdh3 ]; do echo waiting for /dev/xvdh3 to attach; sleep 10; done\n",
+                    "while [ ! -e /dev/xvdh4 ]; do echo waiting for /dev/xvdh4 to attach; sleep 10; done\n",
+                    
                     "## Create RAID10 and persist configuration\n",
-                    "mdadm --verbose --create /dev/md0 --level=10 --chunk=256 --raid-devices=4 /dev/sdh1 /dev/sdh2 /dev/sdh3 /dev/sdh4 > /tmp/mdadm.log 2>&1\n",
+                    "mdadm --verbose --create /dev/md0 --level=10 --chunk=256 --raid-devices=4 /dev/xvdh1 /dev/xvdh2 /dev/xvdh3 /dev/xvdh4 > /tmp/mdadm.log 2>&1\n",
                     "echo '`mdadm --detail --scan`' | tee -a /etc/mdadm.conf\n",
 
                     "## Set read-ahead on each device\n",
                     "blockdev --setra 128 /dev/md0\n",
-                    "blockdev --setra 128 /dev/sdh1\n",
-                    "blockdev --setra 128 /dev/sdh2\n",
-                    "blockdev --setra 128 /dev/sdh3\n",
-                    "blockdev --setra 128 /dev/sdh4\n",
+                    "blockdev --setra 128 /dev/xvdh1\n",
+                    "blockdev --setra 128 /dev/xvdh2\n",
+                    "blockdev --setra 128 /dev/xvdh3\n",
+                    "blockdev --setra 128 /dev/xvdh4\n",
 
                     "## Create physical and logical volumes\n",
                     "dd if=/dev/zero of=/dev/md0 bs=512 count=1\n",
@@ -209,7 +208,7 @@
                     "EOF\n",
 
                     "## Start mongod\n",
-                    "## /etc/init.d/mongod start > /tmp/mongod-start.log 2>&1\n",
+                    "/etc/init.d/mongod start > /tmp/mongod-start.log 2>&1\n",
 
                     "## CloudFormation signal that setup is complete\n",
                     "cfn-signal -e 0 -r \"MongoInstance setup complete\" '", { "Ref" : "WaitHandleMongoInstance" }, "'\n"
@@ -251,7 +250,6 @@
 
         "MongoVolumeMount1" : {
             "Type" : "AWS::EC2::VolumeAttachment",
-            "DependsOn" : "MongoVolume1",
             "Properties" : {
                 "InstanceId" : { "Ref" : "MongoInstance" },
                 "VolumeId" : { "Ref" : "MongoVolume1" },
@@ -261,7 +259,6 @@
 
         "MongoVolumeMount2" : {
             "Type" : "AWS::EC2::VolumeAttachment",
-            "DependsOn" : "MongoVolume2",
             "Properties" : {
                 "InstanceId" : { "Ref" : "MongoInstance" },
                 "VolumeId" : { "Ref" : "MongoVolume2" },
@@ -271,7 +268,6 @@
 
         "MongoVolumeMount3" : {
             "Type" : "AWS::EC2::VolumeAttachment",
-            "DependsOn" : "MongoVolume3",
             "Properties" : {
                 "InstanceId" : { "Ref" : "MongoInstance" },
                 "VolumeId" : { "Ref" : "MongoVolume3" },
@@ -281,7 +277,6 @@
 
         "MongoVolumeMount4" : {
             "Type" : "AWS::EC2::VolumeAttachment",
-            "DependsOn" : "MongoVolume4",
             "Properties" : {
                 "InstanceId" : { "Ref" : "MongoInstance" },
                 "VolumeId" : { "Ref" : "MongoVolume4" },
@@ -296,7 +291,7 @@
 
         "WaitConditionMongoInstance" : {
             "Type" : "AWS::CloudFormation::WaitCondition",
-            "DependsOn" : ["MongoInstance", "MongoVolumeMount4", "MongoVolumeMount3", "MongoVolumeMount2", "MongoVolumeMount1"], 
+            "DependsOn" : ["MongoVolumeMount4", "MongoVolumeMount3", "MongoVolumeMount2", "MongoVolumeMount1"], 
             "Properties" : {
                 "Handle" : { "Ref" : "WaitHandleMongoInstance" },
                 "Timeout" : "3000"
