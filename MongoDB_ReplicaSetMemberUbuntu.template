@@ -63,13 +63,13 @@
         },
 
         "RegionImageZone" : {
-            "us-east-1"      : { "64" : "ami-e565ba8c", "64HVM" : "ami-e965ba80" },
-            "us-west-2"      : { "64" : "ami-3ac64a0a", "64HVM" : "NOT_YET_SUPPORTED" },
-            "us-west-1"      : { "64" : "ami-e78cd4a2", "64HVM" : "NOT_YET_SUPPORTED" },
-            "eu-west-1"      : { "64" : "ami-f9231b8d", "64HVM" : "NOT_YET_SUPPORTED" },
-            "ap-southeast-1" : { "64" : "ami-be3374ec", "64HVM" : "NOT_YET_SUPPORTED" },
-            "ap-northeast-1" : { "64" : "ami-e47acbe5", "64HVM" : "NOT_YET_SUPPORTED" },
-            "sa-east-1"      : { "64" : "ami-a6855bbb", "64HVM" : "NOT_YET_SUPPORTED" }
+            "us-east-1"      : { "64" : "ami-a29943cb", "64HVM" : "ami-e965ba80" },
+            "us-west-2"      : { "64" : "ami-20800c10", "64HVM" : "NOT_YET_SUPPORTED" },
+            "us-west-1"      : { "64" : "ami-87712ac2", "64HVM" : "NOT_YET_SUPPORTED" },
+            "eu-west-1"      : { "64" : "ami-e1e8d395", "64HVM" : "NOT_YET_SUPPORTED" },
+            "ap-southeast-1" : { "64" : "ami-a4ca8df6", "64HVM" : "NOT_YET_SUPPORTED" },
+            "ap-northeast-1" : { "64" : "ami-60c77761", "64HVM" : "NOT_YET_SUPPORTED" },
+            "sa-east-1"      : { "64" : "ami-8cd80691", "64HVM" : "NOT_YET_SUPPORTED" }
         }
     },
 
@@ -81,23 +81,8 @@
                 "AWS::CloudFormation::Init" : {
                     "config" : {
                         "packages" : {
-                            "yum" : {
-                                "mdadm" : [],
-                                "sysstat" : []
-                            }
                         },
                         "files" : {
-                            "/etc/yum.repos.d/10gen.repo" : {
-                                "content" : { "Fn::Join" : ["", [
-                                    "[10gen]\n",
-                                    "name=10gen Repository\n",
-                                    "baseurl=http://downloads-distro.mongodb.org/repo/redhat/os/x86_64\n",
-                                    "gpgcheck=0\n"
-                                ] ] },
-                                "mode" : "000644",
-                                "owner" : "root",
-                                "group" : "root"
-                            }
                         }
                     }
                 }
@@ -112,8 +97,7 @@
                 "AvailabilityZone" : {"Ref" : "InstanceZone" },
                 "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
                     "#!/bin/bash\n",
-                    "yum update -y aws-cfn-bootstrap\n",
-
+                    
                     "## Error reporting helper function\n",
                     "function error_exit\n",
                     "{\n",
@@ -121,30 +105,37 @@
                     "   exit 1\n",
                     "}\n",
 
+                    "## add mongo gpg key\n",
+                    "apt-key adv --keyserver keyserver.ubuntu.com --recv 7F0CEB10 >> /tmp/cfn-init.log 2>&1\n",
+                    "echo 'deb http://downloads-distro.mongodb.org/repo/debian-sysvinit dist 10gen' >> /etc/apt/sources.list\n",
+                    
+                    "apt-get -y update >> /tmp/cfn-init.log 2>&1\n",
+                    "DEBIAN_FRONTEND=noninteractive apt-get -y install mdadm sysstat mongodb-10gen >> /tmp/apt.log 2>&1\n",
+                    "apt-get -y install python-setuptools\n",
+                    "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
+                    
                     "## Initialize CloudFormation bits\n",
                     "/opt/aws/bin/cfn-init -v -s ", { "Ref" : "AWS::StackName" }, " -r ReplicaSetMemberInstance",
                     "   --access-key ",  { "Ref" : "AccessKeyId" },
                     "   --secret-key ", {"Ref": "SecretAccessKey" },
-                    "   --region ", { "Ref" : "AWS::Region" }, " > /tmp/cfn-init.log 2>&1 || error_exit $(</tmp/cfn-init.log)\n",
+                    "   --region ", { "Ref" : "AWS::Region" }, " >> /tmp/cfn-init.log 2>&1 || error_exit $(</tmp/cfn-init.log)\n",
 
                     "## Waiting for EBS mounts to become available\n",
-                    "while [ ! -e /dev/sdh1 ]; do echo waiting for /dev/sdh1 to attach; sleep 10; done\n",
-                    "while [ ! -e /dev/sdh2 ]; do echo waiting for /dev/sdh2 to attach; sleep 10; done\n",
-                    "while [ ! -e /dev/sdh3 ]; do echo waiting for /dev/sdh3 to attach; sleep 10; done\n",
-                    "while [ ! -e /dev/sdh4 ]; do echo waiting for /dev/sdh4 to attach; sleep 10; done\n",
-
-                    "yum -y install mongo-10gen-server > /tmp/yum-mongo.log 2>&1\n",
-
+                    "while [ ! -e /dev/xvdh1 ]; do echo waiting for /dev/xvdh1 to attach; sleep 10; done\n",
+                    "while [ ! -e /dev/xvdh2 ]; do echo waiting for /dev/xvdh2 to attach; sleep 10; done\n",
+                    "while [ ! -e /dev/xvdh3 ]; do echo waiting for /dev/xvdh3 to attach; sleep 10; done\n",
+                    "while [ ! -e /dev/xvdh4 ]; do echo waiting for /dev/xvdh4 to attach; sleep 10; done\n",
+                    
                     "## Create RAID10 and persist configuration\n",
-                    "mdadm --verbose --create /dev/md0 --level=10 --chunk=256 --raid-devices=4 /dev/sdh1 /dev/sdh2 /dev/sdh3 /dev/sdh4 > /tmp/mdadm.log 2>&1\n",
+                    "mdadm --verbose --create /dev/md0 --level=10 --chunk=256 --raid-devices=4 /dev/xvdh1 /dev/xvdh2 /dev/xvdh3 /dev/xvdh4 > /tmp/mdadm.log 2>&1\n",
                     "echo '`mdadm --detail --scan`' | tee -a /etc/mdadm.conf\n",
 
                     "## Set read-ahead on each device\n",
                     "blockdev --setra 128 /dev/md0\n",
-                    "blockdev --setra 128 /dev/sdh1\n",
-                    "blockdev --setra 128 /dev/sdh2\n",
-                    "blockdev --setra 128 /dev/sdh3\n",
-                    "blockdev --setra 128 /dev/sdh4\n",
+                    "blockdev --setra 128 /dev/xvdh1\n",
+                    "blockdev --setra 128 /dev/xvdh2\n",
+                    "blockdev --setra 128 /dev/xvdh3\n",
+                    "blockdev --setra 128 /dev/xvdh4\n",
 
                     "## Create physical and logical volumes\n",
                     "dd if=/dev/zero of=/dev/md0 bs=512 count=1\n",
@@ -271,10 +262,10 @@
 
         "WaitConditionReplicaSetMember" : {
             "Type" : "AWS::CloudFormation::WaitCondition",
-            "DependsOn" : "ReplicaSetMemberInstance",
+            "DependsOn" : ["MongoVolumeMount4", "MongoVolumeMount3", "MongoVolumeMount2", "MongoVolumeMount1"], 
             "Properties" : {
                 "Handle" : { "Ref" : "WaitHandleReplicaSetMember" },
-                "Timeout" : "300"
+                "Timeout" : "3000"
             }
         }
     },
