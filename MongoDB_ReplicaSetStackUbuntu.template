@@ -1,0 +1,398 @@
+{
+    "AWSTemplateFormatVersion" : "2010-09-09",
+
+    "Description" : "MongoDB replica set stack",
+
+    "Parameters" : {
+        "KeyName" : {
+            "Description" : "Name of an existing EC2 KeyPair to enable SSH access",
+            "Type" : "String" 
+        },
+
+        "InstanceType" : {
+            "Type" : "String", 
+            "Default" : "m1.large", 
+            "AllowedValues" : [ "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.xlarge", "cc1.4xlarge" ],
+            "Description" : "EC2 instance type (e.g. m1.large, m1.xlarge, m2.xlarge)"
+        },
+
+        "VolumeSize" : {
+            "Description" : "Volume size for each EBS volume",
+            "Type" : "Number",
+            "Default" : "10"
+        },
+
+        "ReplicaSetName" : {
+            "Description" : "Name for the MongoDB replica set",
+            "Type" : "String",
+            "Default" : "MyReplicaSet"
+        }
+    },
+
+    "Mappings" : {
+        "InstanceTypeArch" : {
+            "m1.small"    : { "Arch" : "64" },
+            "m1.medium"   : { "Arch" : "64" },
+            "m1.large"    : { "Arch" : "64" },
+            "m1.xlarge"   : { "Arch" : "64" },
+            "m2.xlarge"   : { "Arch" : "64" },
+            "m2.2xlarge"  : { "Arch" : "64" },
+            "m2.4xlarge"  : { "Arch" : "64" },
+            "c1.medium"   : { "Arch" : "64" },
+            "c1.xlarge"   : { "Arch" : "64" },
+            "cc1.4xlarge" : { "Arch" : "64HVM" }
+        },
+
+        "RegionImageZone" : {
+            "us-east-1"     : { "64" : "ami-e565ba8c", "64HVM" : "ami-e965ba80" },
+            "us-west-2"     : { "64" : "ami-3ac64a0a", "64HVM" : "NOT_YET_SUPPORTED" },
+            "us-west-1"     : { "64" : "ami-e78cd4a2", "64HVM" : "NOT_YET_SUPPORTED" },
+            "eu-west-1"     : { "64" : "ami-f9231b8d", "64HVM" : "NOT_YET_SUPPORTED" },
+            "ap-southeast-1": { "64" : "ami-be3374ec", "64HVM" : "NOT_YET_SUPPORTED" },
+            "ap-northeast-1": { "64" : "ami-e47acbe5", "64HVM" : "NOT_YET_SUPPORTED" },
+            "sa-east-1"     : { "64" : "ami-a6855bbb", "64HVM" : "NOT_YET_SUPPORTED" }
+        },
+
+        "RegionZone" : {
+            "us-east-1"     : {"AZ1" : "us-east-1a", "AZ2" : "us-east-1b", "AZ3" : "us-east-1b", "AZ4" : "us-east-1d", "AZ5" : "us-east-1e"},
+            "us-west-1"     : {"AZ1" : "us-west-1a", "AZ2" : "us-west-1b", "AZ3" : "us-west-1c"},
+            "us-west-2"     : {"AZ1" : "us-west-2a", "AZ2" : "us-west-2b"},
+            "eu-west-1"     : {"AZ1" : "eu-west-1a", "AZ2" : "eu-west-1b", "AZ3" : "eu-west-1c"},
+            "ap-northeast-1": {"AZ1" : "ap-northeast-1a", "AZ2" : "ap-northeast-1b"},
+            "ap-southeast-1": {"AZ1" : "ap-southeast-1a", "AZ2" : "ap-southeast-1b"},
+            "sa-east-1"     : {"AZ1" : "sa-east-1a", "AZ2" : "sa-east-1b"}
+        }
+    },
+
+    "Resources" : {
+        "MongoSecurityGroup" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "GroupDescription" : "ReplicaSet security group",
+                "SecurityGroupIngress" : [ 
+                    {
+                        "IpProtocol" : "tcp",
+                        "FromPort" : "22",
+                        "ToPort" : "22",
+                        "CidrIp" : "0.0.0.0/0"
+                    }
+                ]
+            }
+        },
+
+        "MongoSecurityGroupIngress" : {
+            "Type" : "AWS::EC2::SecurityGroupIngress",
+            "Properties" : {
+                "GroupName" : { "Ref" : "MongoSecurityGroup" },
+                "IpProtocol" : "tcp",
+                "FromPort" : "27017",
+                "ToPort" : "27017",
+                "SourceSecurityGroupName" : { "Ref" : "MongoSecurityGroup" }
+            }
+        },
+
+        "StatusIngress" : {
+            "Type" : "AWS::EC2::SecurityGroupIngress",
+            "Properties" : {
+                "GroupName" : { "Ref" : "MongoSecurityGroup" },
+                "IpProtocol" : "tcp",
+                "FromPort" : "28017",
+                "ToPort" : "28017",
+                "SourceSecurityGroupName" : { "Ref" : "MongoSecurityGroup" }
+            }
+        },
+
+        "CfnUser" : {
+            "Type" : "AWS::IAM::User",
+            "Properties" : {
+                "Path": "/",
+                "Policies": [ {
+                    "PolicyName": "root",
+                    "PolicyDocument": { "Statement": [ {
+                        "Effect":"Allow",
+                        "Action":"cloudformation:DescribeStackResource",
+                        "Resource":"*"
+                    } ] }
+                } ]
+            }
+        },
+
+        "AccessKey" : {
+            "Type" : "AWS::IAM::AccessKey",
+            "Properties" : {
+                "UserName" : { "Ref" : "CfnUser" }
+            }
+        },
+
+        "ReplicaSetMember1" : {
+            "Type" : "AWS::CloudFormation::Stack",
+            "Properties" : {
+                "TemplateURL" : "http://S3URL/MongoDB_ReplicaSetMember.template",
+                "Parameters" : {
+                    "KeyName" : { "Ref" : "KeyName" },
+                    "InstanceType" : { "Ref" : "InstanceType" },
+                    "VolumeSize" : { "Ref" : "VolumeSize" },
+                    "AccessKeyId" : { "Ref" : "AccessKey" },
+                    "SecretAccessKey" : {"Fn::GetAtt": ["AccessKey", "SecretAccessKey"]},
+                    "ReplicaSetName" : { "Ref" : "ReplicaSetName" },
+                    "SecurityGroupName" : { "Ref" : "MongoSecurityGroup" },
+                    "InstanceZone" : { "Fn::FindInMap" : ["RegionZone", { "Ref" : "AWS::Region"}, "AZ2"] }
+                }
+            }
+        },
+
+        "ReplicaSetMember2" : {
+            "Type" : "AWS::CloudFormation::Stack",
+            "DependsOn" : "ReplicaSetMember1",
+            "Properties" : {
+                "TemplateURL" : "http://S3URL/MongoDB_ReplicaSetMember.template",
+                "Parameters" : {
+                    "KeyName" : { "Ref" : "KeyName" },
+                    "InstanceType" : { "Ref" : "InstanceType" },
+                    "VolumeSize" : { "Ref" : "VolumeSize" },
+                    "AccessKeyId" : { "Ref" : "AccessKey" },
+                    "SecretAccessKey" : {"Fn::GetAtt": ["AccessKey", "SecretAccessKey"]},
+                    "ReplicaSetName" : { "Ref" : "ReplicaSetName" },
+                    "SecurityGroupName" : { "Ref" : "MongoSecurityGroup" },
+                    "InstanceZone" : { "Fn::FindInMap" : ["RegionZone", { "Ref" : "AWS::Region"}, "AZ3"] }
+                }
+            }
+        },
+
+        "MongoInstanceP1" : {
+            "Type" : "AWS::EC2::Instance",
+            "Metadata" : {
+                "AWS::CloudFormation::Init" : {
+                    "config" : {
+                        "packages" : {
+                            "yum" : {
+                                "mdadm" : [],
+                                "sysstat" : []
+                            }
+                        },
+                        "files" : {
+                            "/etc/yum.repos.d/10gen.repo" : {
+                                "content" : { "Fn::Join" : ["", [
+                                    "[10gen]\n",
+                                    "name=10gen Repository\n",
+                                    "baseurl=http://downloads-distro.mongodb.org/repo/redhat/os/x86_64\n",
+                                    "gpgcheck=0\n"
+                                ] ] },
+                                "mode" : "000644",
+                                "owner" : "root",
+                                "group" : "root"
+                            }
+                        }
+                    }
+                }
+            },
+            "DependsOn" : "ReplicaSetMember2",
+            "Properties" : {
+                "InstanceType" : { "Ref" : "InstanceType" },
+                "ImageId" : { "Fn::FindInMap" : [ "RegionImageZone", { "Ref" : "AWS::Region" }, 
+                    { "Fn::FindInMap" : [ "InstanceTypeArch", { "Ref" : "InstanceType" }, "Arch" ] } ] },
+                "SecurityGroups" : [ { "Ref" : "MongoSecurityGroup" } ],
+                "KeyName" : { "Ref" : "KeyName" },
+                "AvailabilityZone" : { "Fn::FindInMap" : ["RegionZone", { "Ref" : "AWS::Region"}, "AZ1"] },
+                "UserData" : { "Fn::Base64" : { "Fn::Join" : ["", [
+                    "#!/bin/bash\n",
+                    "yum update -y aws-cfn-bootstrap\n",
+
+                    "## Error reporting helper function\n",
+                    "function error_exit\n",
+                    "{\n",
+                    "   /opt/aws/bin/cfn-signal -e 1 -r \"$1\" '", { "Ref" : "WaitHandleP1" }, "'\n",
+                    "   exit 1\n",
+                    "}\n",
+
+                    "## Initialize CloudFormation bits\n",
+                    "/opt/aws/bin/cfn-init -v -s ", { "Ref" : "AWS::StackName" }, " -r MongoInstanceP1",
+                    "   --access-key ",  { "Ref" : "AccessKey" },
+                    "   --secret-key ", {"Fn::GetAtt": ["AccessKey", "SecretAccessKey"]},
+                    "   --region ", { "Ref" : "AWS::Region" }, " > /tmp/cfn-init.log 2>&1 || error_exit $(</tmp/cfn-init.log)\n",
+
+                    "## Waiting for EBS mounts to become available\n",
+                    "while [ ! -e /dev/sdh1 ]; do echo waiting for /dev/sdh1 to attach; sleep 10; done\n",
+                    "while [ ! -e /dev/sdh2 ]; do echo waiting for /dev/sdh2 to attach; sleep 10; done\n",
+                    "while [ ! -e /dev/sdh3 ]; do echo waiting for /dev/sdh3 to attach; sleep 10; done\n",
+                    "while [ ! -e /dev/sdh4 ]; do echo waiting for /dev/sdh4 to attach; sleep 10; done\n",
+
+                    "yum -y install mongo-10gen-server > /tmp/yum-mongo.log 2>&1\n",
+
+                    "## Create RAID10 and persist configuration\n",
+                    "mdadm --verbose --create /dev/md0 --level=10 --chunk=256 --raid-devices=4 /dev/sdh1 /dev/sdh2 /dev/sdh3 /dev/sdh4 > /tmp/mdadm.log 2>&1\n",
+                    "echo '`mdadm --detail --scan`' | tee -a /etc/mdadm.conf\n",
+
+                    "## Set read-ahead on each device\n",
+                    "blockdev --setra 128 /dev/md0\n",
+                    "blockdev --setra 128 /dev/sdh1\n",
+                    "blockdev --setra 128 /dev/sdh2\n",
+                    "blockdev --setra 128 /dev/sdh3\n",
+                    "blockdev --setra 128 /dev/sdh4\n",
+
+                    "## Create physical and logical volumes\n",
+                    "dd if=/dev/zero of=/dev/md0 bs=512 count=1\n",
+                    "pvcreate /dev/md0\n",
+                    "vgcreate vg0 /dev/md0\n",
+                    "lvcreate -l 90%vg -n data vg0\n",
+                    "lvcreate -l 5%vg -n log vg0\n",
+                    "lvcreate -l 5%vg -n journal vg0\n",
+
+                    "## Create filesystems and mount point info\n",
+                    "mke2fs -t ext4 -F /dev/vg0/data > /tmp/mke2fs1.log 2>&1\n",
+                    "mke2fs -t ext4 -F /dev/vg0/log > /tmp/mke2fs2.log 2>&1\n",
+                    "mke2fs -t ext4 -F /dev/vg0/journal > /tmp/mke2fs3.log 2>&1\n",
+
+                    "mkdir /data\n",
+                    "mkdir /log\n",
+                    "mkdir /journal\n",
+
+                    "echo '/dev/vg0/data /data ext4 defaults,auto,noatime,noexec 0 0' | tee -a /etc/fstab\n",
+                    "echo '/dev/vg0/log /log ext4 defaults,auto,noatime,noexec 0 0' | tee -a /etc/fstab\n",
+                    "echo '/dev/vg0/journal /journal ext4 defaults,auto,noatime,noexec 0 0' | tee -a /etc/fstab\n",
+                    
+                    "mount /data > /tmp/mount1.log 2>&1\n",
+                    "mount /log > /tmp/mount2.log 2>&1\n",
+                    "mount /journal > /tmp/mount3.log 2>&1\n",
+
+                    "ln -s /journal /data/journal\n",
+
+                    "chown -R mongod:mongod /data > /tmp/chown1.log 2>&1\n",
+                    "chown -R mongod:mongod /log > /tmp/chown2.log 2>&1\n",
+                    "chown -R mongod:mongod /journal > /tmp/chown3.log 2>&1\n",
+
+                    "## Update mongod configuration\n",
+                    "cat <<EOF > /etc/mongod.conf\n",
+                    "logpath=/log/mongod.log\n",
+                    "logappend=true\n",
+                    "fork=true\n",
+                    "dbpath=/data\n",
+                    "rest=true\n",
+                    "replSet=", { "Ref" : "ReplicaSetName" } ,"\n",
+                    "EOF\n",
+
+                    "## Start mongod\n",
+                    "/etc/init.d/mongod start > /tmp/mongod-start.log 2>&1\n",
+
+                    "## Waiting until mongod has started\n",
+                    "sleep 120\n",
+
+                    "## Create replica set configuration\n",
+                    "## The following is only needed on the PRIMARY\n",
+                    "HOSTNAME=`/usr/bin/curl -s http://169.254.169.254/latest/meta-data/public-hostname`\n",
+
+                    "cat <<EOF > /tmp/replicaSetConfigInit.js\n",
+                    "config = {_id: \"", { "Ref" : "ReplicaSetName" } ,"\", members : [",
+                        "{_id : 0, host:\"$HOSTNAME:27017\"},",
+                        "{_id : 1, host:\"", { "Fn::GetAtt" : ["ReplicaSetMember1", "Outputs.ReplicaSetMemberName"] },":27017\"},",
+                        "{_id : 2, host:\"", { "Fn::GetAtt" : ["ReplicaSetMember2", "Outputs.ReplicaSetMemberName"] },":27017\"}",
+                    "]};\n",
+                    "rs.initiate(config);\n",
+                    "EOF\n",
+
+                    "/usr/bin/mongo /tmp/replicaSetConfigInit.js > /tmp/replica-setup.log 2>&1\n",
+
+                    "## CloudFormation signal that setup is complete\n",
+                    "/opt/aws/bin/cfn-signal -e 0 -r \"MongoInstanceP1 setup complete\" '", { "Ref" : "WaitHandleP1" }, "'\n"
+                ] ] } }
+            }
+        },
+
+        "MongoVolume1P1" : {
+            "Type" : "AWS::EC2::Volume",
+            "Properties" : {
+                "Size" : { "Ref" : "VolumeSize" },
+                "AvailabilityZone" : { "Fn::GetAtt" : [ "MongoInstanceP1", "AvailabilityZone" ]}
+            }
+        },
+
+        "MongoVolume2P1" : {
+            "Type" : "AWS::EC2::Volume",
+            "Properties" : {
+                "Size" : { "Ref" : "VolumeSize" },
+                "AvailabilityZone" : { "Fn::GetAtt" : [ "MongoInstanceP1", "AvailabilityZone" ]}
+            }
+        },
+
+        "MongoVolume3P1" : {
+            "Type" : "AWS::EC2::Volume",
+            "Properties" : {
+                "Size" : { "Ref" : "VolumeSize" },
+                "AvailabilityZone" : { "Fn::GetAtt" : [ "MongoInstanceP1", "AvailabilityZone" ]}
+            }
+        },
+
+        "MongoVolume4P1" : {
+            "Type" : "AWS::EC2::Volume",
+            "Properties" : {
+                "Size" : { "Ref" : "VolumeSize" },
+                "AvailabilityZone" : { "Fn::GetAtt" : [ "MongoInstanceP1", "AvailabilityZone" ]}
+            }
+        },
+
+        "MongoVolumeMount1P1" : {
+            "Type" : "AWS::EC2::VolumeAttachment",
+            "Properties" : {
+                "InstanceId" : { "Ref" : "MongoInstanceP1" },
+                "VolumeId" : { "Ref" : "MongoVolume1P1" },
+                "Device" : "/dev/sdh1"
+            }
+        },
+
+        "MongoVolumeMount2P1" : {
+            "Type" : "AWS::EC2::VolumeAttachment",
+            "Properties" : {
+                "InstanceId" : { "Ref" : "MongoInstanceP1" },
+                "VolumeId" : { "Ref" : "MongoVolume2P1" },
+                "Device" : "/dev/sdh2"
+            }
+        },
+
+        "MongoVolumeMount3P1" : {
+            "Type" : "AWS::EC2::VolumeAttachment",
+            "Properties" : {
+                "InstanceId" : { "Ref" : "MongoInstanceP1" },
+                "VolumeId" : { "Ref" : "MongoVolume3P1" },
+                "Device" : "/dev/sdh3"
+            }
+        },
+
+        "MongoVolumeMount4P1" : {
+            "Type" : "AWS::EC2::VolumeAttachment",
+            "Properties" : {
+                "InstanceId" : { "Ref" : "MongoInstanceP1" },
+                "VolumeId" : { "Ref" : "MongoVolume4P1" },
+                "Device" : "/dev/sdh4"
+            }
+        },
+
+        "WaitHandleP1" : {
+            "Type" : "AWS::CloudFormation::WaitConditionHandle",
+            "Properties" : {}
+        },
+
+        "WaitConditionP1" : {
+            "Type" : "AWS::CloudFormation::WaitCondition",
+            "DependsOn" : "MongoInstanceP1",
+            "Properties" : {
+                "Handle" : { "Ref" : "WaitHandleP1" },
+                "Timeout" : "600"
+            }
+        }
+    },
+
+    "Outputs" : {
+        "ReplicaSetMemberName1" : {
+            "Value" : { "Fn::GetAtt" : [ "MongoInstanceP1", "PublicDnsName" ] },
+            "Description" : "public DNS name of the MongoDB replica set member 1"
+        },
+        "ReplicaSetMemberName2" : { 
+            "Value" : { "Fn::GetAtt" : [ "ReplicaSetMember1", "Outputs.ReplicaSetMemberName" ] },
+            "Description" : "public DNS name of the MongoDB replica set member 2"
+        },
+        "ReplicaSetMemberName3" : { 
+            "Value" : { "Fn::GetAtt" : [ "ReplicaSetMember2", "Outputs.ReplicaSetMemberName" ] },
+            "Description" : "public DNS name of the MongoDB replica set member 3"
+        }
+    }
+}
