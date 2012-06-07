@@ -11,8 +11,8 @@
 
         "InstanceType" : {
             "Type" : "String", 
-            "Default" : "m1.large", 
-            "AllowedValues" : [ "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.xlarge", "cc1.4xlarge" ],
+            "Default" : "m1.small",
+            "AllowedValues" : [ "m1.small", "m1.medium", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.xlarge", "cc1.4xlarge" ],
             "Description" : "EC2 instance type (e.g. m1.large, m1.xlarge, m2.xlarge)"
         },
 
@@ -179,7 +179,7 @@
                     "EOF\n",
 
                     "## Start mongod\n",
-                    "/etc/init.d/mongod start > /tmp/mongod-start.log 2>&1\n",
+                    "/etc/init.d/mongodb start > /tmp/mongod-start.log 2>&1\n",
 
                     "## CloudFormation signal that setup is complete\n",
                     "cfn-signal -e 0 -r \"ReplicaSetMemberInstance setup complete\" '", { "Ref" : "WaitHandleReplicaSetMember" }, "'\n"
