@@ -259,7 +259,7 @@
                     "chown -R mongod:mongod /journal > /tmp/chown3.log 2>&1\n",
 
                     "## Update mongod configuration\n",
-                    "cat <<EOF > /etc/mongod.conf\n",
+                    "cat <<EOF > /etc/mongodb.conf\n",
                     "logpath=/log/mongod.log\n",
                     "logappend=true\n",
                     "fork=true\n",
@@ -287,7 +287,7 @@
                     "rs.initiate(config);\n",
                     "EOF\n",
 
-                    "/usr/bin/mongo /tmp/replicaSetConfigInit.js > /tmp/replica-setup.log 2>&1\n",
+                    "/usr/bin/mongo < /tmp/replicaSetConfigInit.js > /tmp/replica-setup.log 2>&1\n",
 
                     "## CloudFormation signal that setup is complete\n",
                     "cfn-signal -e 0 -r \"MongoInstanceP1 setup complete\" '", { "Ref" : "WaitHandleP1" }, "'\n"
