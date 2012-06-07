@@ -101,7 +101,7 @@
                     "## Error reporting helper function\n",
                     "function error_exit\n",
                     "{\n",
-                    "   /opt/aws/bin/cfn-signal -e 1 -r \"$1\" '", { "Ref" : "WaitHandleReplicaSetMember" }, "'\n",
+                    "   cfn-signal -e 1 -r \"$1\" '", { "Ref" : "WaitHandleReplicaSetMember" }, "'\n",
                     "   exit 1\n",
                     "}\n",
 
@@ -115,7 +115,7 @@
                     "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
                     
                     "## Initialize CloudFormation bits\n",
-                    "/opt/aws/bin/cfn-init -v -s ", { "Ref" : "AWS::StackName" }, " -r ReplicaSetMemberInstance",
+                    "cfn-init -v -s ", { "Ref" : "AWS::StackName" }, " -r ReplicaSetMemberInstance",
                     "   --access-key ",  { "Ref" : "AccessKeyId" },
                     "   --secret-key ", {"Ref": "SecretAccessKey" },
                     "   --region ", { "Ref" : "AWS::Region" }, " >> /tmp/cfn-init.log 2>&1 || error_exit $(</tmp/cfn-init.log)\n",
@@ -182,7 +182,7 @@
                     "/etc/init.d/mongod start > /tmp/mongod-start.log 2>&1\n",
 
                     "## CloudFormation signal that setup is complete\n",
-                    "/opt/aws/bin/cfn-signal -e 0 -r \"ReplicaSetMemberInstance setup complete\" '", { "Ref" : "WaitHandleReplicaSetMember" }, "'\n"
+                    "cfn-signal -e 0 -r \"ReplicaSetMemberInstance setup complete\" '", { "Ref" : "WaitHandleReplicaSetMember" }, "'\n"
                 ] ] } }
             }
         },
