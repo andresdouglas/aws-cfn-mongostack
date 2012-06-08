@@ -268,8 +268,8 @@
                     "replSet=", { "Ref" : "ReplicaSetName" } ,"\n",
                     "EOF\n",
 
-                    "## Start mongod\n",
-                    "/etc/init.d/mongodb start > /tmp/mongod-start.log 2>&1\n",
+                    "## Restart mongod to pick up new conf\n",
+                    "/etc/init.d/mongodb restart > /tmp/mongod-start.log 2>&1\n",
 
                     "## Waiting until mongod has started\n",
                     "sleep 120\n",
