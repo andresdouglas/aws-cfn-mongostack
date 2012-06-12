@@ -107,10 +107,12 @@
 
                     "## add mongo gpg key\n",
                     "apt-key adv --keyserver keyserver.ubuntu.com --recv 7F0CEB10 >> /tmp/cfn-init.log 2>&1\n",
-                    "echo 'deb http://downloads-distro.mongodb.org/repo/debian-sysvinit dist 10gen' >> /etc/apt/sources.list\n",
+                    "echo 'deb http://downloads-distro.mongodb.org/repo/ubuntu-upstart dist 10gen' >> /etc/apt/sources.list\n",
                     
                     "apt-get -y update >> /tmp/cfn-init.log 2>&1\n",
                     "DEBIAN_FRONTEND=noninteractive apt-get -y install mdadm sysstat mongodb-10gen >> /tmp/apt.log 2>&1\n",
+                    "service mongodb stop\n",
+
                     "apt-get -y install python-setuptools\n",
                     "easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n",
                     
@@ -164,9 +166,9 @@
 
                     "ln -s /journal /data/journal\n",
 
-                    "chown -R mongod:mongod /data > /tmp/chown1.log 2>&1\n",
-                    "chown -R mongod:mongod /log > /tmp/chown2.log 2>&1\n",
-                    "chown -R mongod:mongod /journal > /tmp/chown3.log 2>&1\n",
+                    "chown -R mongodb:mongodb /data > /tmp/chown1.log 2>&1\n",
+                    "chown -R mongodb:mongodb /log > /tmp/chown2.log 2>&1\n",
+                    "chown -R mongodb:mongodb /journal > /tmp/chown3.log 2>&1\n",
 
                     "## Update mongod configuration\n",
                     "cat <<EOF > /etc/mongodb.conf\n",
@@ -179,7 +181,7 @@
                     "EOF\n",
 
                     "## Start mongod\n",
-                    "/etc/init.d/mongodb restart > /tmp/mongod-start.log 2>&1\n",
+                    "service mongodb start > /tmp/mongod-start.log 2>&1\n",
 
                     "## CloudFormation signal that setup is complete\n",
                     "cfn-signal -e 0 -r \"ReplicaSetMemberInstance setup complete\" '", { "Ref" : "WaitHandleReplicaSetMember" }, "'\n"
