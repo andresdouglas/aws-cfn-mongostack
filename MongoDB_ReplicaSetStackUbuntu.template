@@ -199,7 +199,7 @@
                     
                     "apt-get -y update >> /tmp/cfn-init.log 2>&1\n",
                     
-                    "DEBIAN_FRONTEND=noninteractive apt-get -y install mdadm sysstat mongodb-10gen >> /tmp/apt.log 2>&1\n",
+                    "DEBIAN_FRONTEND=noninteractive apt-get -y install mdadm sysstat lvm2 mongodb-10gen >> /tmp/apt.log 2>&1\n",
                     "service mongodb stop\n",
                     
                     "apt-get -y install python-setuptools\n",
